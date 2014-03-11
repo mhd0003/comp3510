@@ -66,7 +66,7 @@ int main (int argc, char **argv) {
 
    if (Initialization(argc,argv)){
      Control();
-   } 
+   }
 } /* end of main function */
 
 /***********************************************************************\
@@ -90,6 +90,19 @@ void Control(void){
 void InterruptRoutineHandlerDevice(void){
   printf("An event occured at %f  Flags = %d \n", Now(), Flags);
 	// Put Here the most urgent steps that cannot wait
+  int deviceNum, temp;
+  Event newEvent;
+  temp = Flags;
+  deviceNum = 1;
+  while ((Flags & temp) != 0) {
+    temp <<= 1;
+    deviceNum += 1;
+  }
+  Flags &= Flags&(~temp);
+  printf("It was device %d  Flags = %d \n", deviceNum, Flags);
+  memcpy(&newEvent, &BufferLastEvent[deviceNum], sizeof(newEvent));
+  // Put in queue
+
 }
 
 
@@ -101,7 +114,7 @@ void InterruptRoutineHandlerDevice(void){
 \***********************************************************************/
 void BookKeeping(void){
   // For EACH device, print out the following metrics :
-  // 1) the percentage of missed events, 2) the average response time, and 
+  // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
   // Print the overall averages of the three metrics 1-3 above
 }
