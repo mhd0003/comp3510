@@ -21,9 +21,62 @@
 /*****************************************************************************\
 *                             Global definitions                              *
 \*****************************************************************************/
+typedef struct node {
+  struct node* next;
+  Event* event;
+} Node;
 
+typedef struct queue {
+  Node* head;
+  Node* tail;
+} Queue;
 
+Queue* enqueue(Queue* queue, Event* event) {
+  // memory problem?
+  Node n;
+  n.next = NULL;
+  n.event = event;
 
+  // shouldn't happen
+  if (queue == NULL) {
+    return NULL;
+  }
+
+  // queue is empty (head == NULL) too
+  if (queue->tail == NULL) {
+    queue->head = &n;
+    queue->tail = &n;
+    return queue;
+  }
+
+  queue->tail->next = &n;
+  queue->tail = &n;
+  return queue;
+}
+
+Event* dequeue(Queue* queue) {
+  Node* n;
+
+  // shouldn't happen
+  if (queue == NULL) {
+    return NULL;
+  }
+
+  n = queue->head;
+  // queue is empty (head == NULL)
+  if (n == NULL) {
+    return NULL;
+  }
+
+  queue->head = queue->head->next;
+
+  // queue has been cleared
+  if (queue->head == NULL) {
+    queue->tail == NULL;
+  }
+
+  return n->event;
+}
 
 
 /*****************************************************************************\
