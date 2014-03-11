@@ -89,7 +89,7 @@ Event* dequeue(Queue* queue) {
 /*****************************************************************************\
 *                                  Global data                                *
 \*****************************************************************************/
-
+Queue allEvents;
 
 
 
@@ -128,8 +128,17 @@ int main (int argc, char **argv) {
  * Function: Monitor Devices and process events (written by students)    *
  \***********************************************************************/
 void Control(void){
+  Event* event;
+  // init the global queue
+  allEvents.head = NULL;
+  allEvents.tail = NULL;
 
-  while (1);
+  while (1) {
+    event = dequeue(&allEvents);
+    if (event != NULL) {
+      Server(event);
+    }
+  }
 
 }
 
@@ -155,7 +164,8 @@ void InterruptRoutineHandlerDevice(void){
   printf("It was device %d  Flags = %d \n", deviceNum, Flags);
   memcpy(&newEvent, &BufferLastEvent[deviceNum], sizeof(newEvent));
   // Put in queue
-
+  enqueue(&allEvents, &newEvent);
+  DisplayEvent('a', &newEvent);
 }
 
 
