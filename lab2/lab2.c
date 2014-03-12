@@ -72,7 +72,7 @@ Event* dequeue(Queue* queue) {
 
   // queue has been cleared
   if (queue->head == NULL) {
-    queue->tail == NULL;
+    queue->tail = NULL;
   }
 
   return n->event;
@@ -154,13 +154,13 @@ void InterruptRoutineHandlerDevice(void){
 	// Put Here the most urgent steps that cannot wait
   int deviceNum, temp;
   Event newEvent;
-  temp = Flags;
-  deviceNum = 1;
-  while ((Flags & temp) != 0) {
+  temp = 1;
+  deviceNum = 0;
+  while ((Flags & temp) == 0) {
     temp <<= 1;
     deviceNum += 1;
   }
-  Flags &= Flags&(~temp);
+  Flags = Flags&(~temp);
   printf("It was device %d  Flags = %d \n", deviceNum, Flags);
   memcpy(&newEvent, &BufferLastEvent[deviceNum], sizeof(newEvent));
   // Put in queue
