@@ -21,61 +21,50 @@
 /*****************************************************************************\
 *                             Global definitions                              *
 \*****************************************************************************/
-typedef struct node {
-  struct node* next;
-  Event* event;
-} Node;
+#define MAXEVENTID 100
 
+Event allEvents[MAXEVENTID*MAX_NUMBER_DEVICES];
+typedef int Index;
+
+// init head = 0, tail = -1;
 typedef struct queue {
-  Node* head;
-  Node* tail;
+  Index head,tail;
 } Queue;
 
-Queue* enqueue(Queue* queue, Event* event) {
-  // memory problem?
-  Node n;
-  n.next = NULL;
-  n.event = event;
-
+Event* enqueue(Queue* queue, Event* event) {
   // shouldn't happen
   if (queue == NULL) {
     return NULL;
   }
+  // printf("\n\n enqueue -- head: %d, tail: %d, eID: %d, dID: %d\n",
+  // queue->head, queue->tail, event->EventID, event->DeviceID);
 
-  // queue is empty (head == NULL) too
-  if (queue->tail == NULL) {
-    queue->head = &n;
-    queue->tail = &n;
-    return queue;
-  }
+  queue->tail += 1;
+  memcpy(&allEvents[queue->tail], event, sizeof(*event));
 
-  queue->tail->next = &n;
-  queue->tail = &n;
-  return queue;
+  // printf(" enqueue -- head: %d, tail: %d, Now: %d, eWhen: %d\n\n",
+  // queue->head, queue->tail, Now(), allEvents[queue->tail].When);
+  return &allEvents[queue->tail];
 }
 
 Event* dequeue(Queue* queue) {
-  Node* n;
+  Event* event;
 
   // shouldn't happen
   if (queue == NULL) {
     return NULL;
   }
 
-  n = queue->head;
-  // queue is empty (head == NULL)
-  if (n == NULL) {
+  // queue is empty -- if (head == tail) then last event in queue
+  if (queue->head > queue->tail) {
     return NULL;
   }
 
-  queue->head = queue->head->next;
-
-  // queue has been cleared
-  if (queue->head == NULL) {
-    queue->tail = NULL;
-  }
-
-  return n->event;
+  event = &allEvents[queue->head];
+  // printf(" dequeue -- head: %d, tail: %d, eID: %d, dID: %d\n\n",
+  // queue->head, queue->tail, event->EventID, event->DeviceID);
+  queue->head += 1;
+  return event;
 }
 
 
@@ -89,8 +78,7 @@ Event* dequeue(Queue* queue) {
 /*****************************************************************************\
 *                                  Global data                                *
 \*****************************************************************************/
-Queue allEvents;
-
+Queue eventQueue;
 
 
 /*****************************************************************************\
@@ -130,13 +118,19 @@ int main (int argc, char **argv) {
 void Control(void){
   Event* event;
   // init the global queue
-  allEvents.head = NULL;
-  allEvents.tail = NULL;
+  eventQueue.head = 0;
+  eventQueue.tail = -1;
 
   while (1) {
-    event = dequeue(&allEvents);
+    event = dequeue(&eventQueue);
     if (event != NULL) {
+      printf("**********Serving eID: %d for dID: %d, Now(): %f, eWhen: %f\n",
+             event->EventID, event->DeviceID, Now(), event->When);
+
       Server(event);
+
+      printf("**********Finish eID: %d for dID: %d, Now(): %f, eWhen: %f\n",
+             event->EventID, event->DeviceID, Now(), event->When);
     }
   }
 
@@ -153,19 +147,23 @@ void InterruptRoutineHandlerDevice(void){
   printf("An event occured at %f  Flags = %d \n", Now(), Flags);
 	// Put Here the most urgent steps that cannot wait
   int deviceNum, temp;
-  Event newEvent;
+  Event* newEvent;
+
   temp = 1;
   deviceNum = 0;
   while ((Flags & temp) == 0) {
     temp <<= 1;
     deviceNum += 1;
   }
+
   Flags = Flags&(~temp);
-  printf("It was device %d  Flags = %d \n", deviceNum, Flags);
-  memcpy(&newEvent, &BufferLastEvent[deviceNum], sizeof(newEvent));
+  // printf("It was device %d  Flags = %d \n", deviceNum, Flags);
+
   // Put in queue
-  enqueue(&allEvents, &newEvent);
-  DisplayEvent('a', &newEvent);
+  newEvent = enqueue(&eventQueue, &BufferLastEvent[deviceNum]);
+
+  DisplayEvent('a', newEvent);
+  return;
 }
 
 
@@ -180,6 +178,7 @@ void BookKeeping(void){
   // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
   // Print the overall averages of the three metrics 1-3 above
+  fflush(stdout);
 }
 
 
