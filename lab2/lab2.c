@@ -100,6 +100,7 @@ void Control(void){
                     devices[deviceNum].turnarounds++;
                     devices[deviceNum].eventsProcessed++;
 				}
+
 				tempFlags = tempFlags >> 1;
 				deviceNum++;
 			}
@@ -131,7 +132,7 @@ void InterruptRoutineHandlerDevice(void){
             devices[deviceNum].responses++;
             DisplayEvent('c', &e);
         }
-        deviceNum = 0;
+
         tempFlags = tempFlags >> 1;
         deviceNum++;
     }
