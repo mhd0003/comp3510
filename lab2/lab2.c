@@ -29,12 +29,12 @@
 *                            Global data structures                           *
 \*****************************************************************************/
 //to keep track of events, response, and turnaround for each device. 
-typedef struct DeviceTag{
-Timestamp responseTotal;
-Timestamp turnaroundTotal;
-int eventsProcessed = 0;
-int responses;
-int turnarounds;
+typedef struct DeviceTag {
+    Timestamp responseTotal;
+    Timestamp turnaroundTotal;
+    int eventsProcessed;
+    int responses;
+    int turnarounds;
 } Device;
 
 /*****************************************************************************\
@@ -44,7 +44,7 @@ Device devices[32];
 Event events[32000];
 int front;
 int back;
-int deviceNum;
+//int deviceNum;
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -81,33 +81,32 @@ int main (int argc, char **argv) {
  * Function: Monitor Devices and process events (written by students)    *
  \***********************************************************************/
 void Control(void){
-
+    Event e;
+    Status tempFlags;
+    int deviceNum = 0;
 	while (1)
 	{
 		if (Flags)
 		{
-			Status tempFlags = Flags;
-			Flags = 0;
+			tempFlags = Flags;
+            Flags = 0;
 			
 			while(tempFlags)
 			{
 				deviceNum = 0;
 				if (tempFlags & 1)
 				{
-					InterruptRoutineHandlerDevice();
+                    e = BufferLastEvent[deviceNum];
+                    Server(&e);
+                    devices[e.DeviceID].turnaroundTotal += Now() - e.When;
+                    devices[e.DeviceID].turnarounds++;
+                    devices[e.DeviceID].eventsProcessed++;
 				}
 				tempFlags = tempFlags >> 1;
 				deviceNum++;
 			}
-			while (front < back)
-			{
-				Event e = events[back];
-				Server(e);
-				devices[e.DeviceID].turnaroundTotal += Now() - e.When;
-				devices[e.DeviceID].turnarounds++;
-				devices[e.DeviceID].eventsProcessed++;
-				front++;
-			}
+
+            //Event e = BufferLastEvent[deviceNum];
 		}
 	}
 }
@@ -119,12 +118,26 @@ void Control(void){
 *           The id of the device is encoded in the variable flag        *
 \***********************************************************************/
 void InterruptRoutineHandlerDevice(void){
-  	printf("An event occured at %f  Flags = %d \n", Now(), TempFlags);
-	events[back] = &BufferLastEvent[deviceNum];
-	devices[deviceNum].responseTotal += Now() - events[back].When;
-	devices[deviceNum].responses++;
-	DisplayEvent('c', &BufferLastEvent[deviceNum]);
-	back++;
+    printf("An event occured at %f  Flags = %d \n", Now(), Flags);   
+
+    Status tempFlags = Flags;
+    int deviceNum = 0;
+   
+    while(tempFlags)    
+    {
+        if(tempFlags & 1) 
+        {
+            Event e = BufferLastEvent[deviceNum];
+
+            devices[deviceNum].responseTotal += Now() - e.When;
+            devices[deviceNum].responses++;
+            DisplayEvent('c', &e);
+        }
+        deviceNum = 0;
+        tempFlags = tempFlags >> 1;
+        deviceNum++;
+    }
+
 }
 
 
@@ -144,7 +157,8 @@ void BookKeeping(void){
   Timestamp avgTurnaround = 0;
   float percentMissed;
   float avgPercentMissed = 0.0;
-  while(n </*number of devices*/)
+  printf("Entering bookkeeping loop");
+  while(n < Number_Devices)
   {
   	avgResponse += devices[n].responseTotal;
 	avgTurnaround += devices[n].turnaroundTotal;
@@ -157,6 +171,7 @@ void BookKeeping(void){
         n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed);
 	n++;
   }
+
   printf("\n Averages over all devices: Avg Response: %4.3f Avg Turnaround: %4.3f Avg Percent Missed: %4.3f\n",
   avgResponse/n, avgTurnaround/n, avgPercentMissed/n);
 }
