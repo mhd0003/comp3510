@@ -41,10 +41,6 @@ typedef struct DeviceTag {
 *                                  Global data                                *
 \*****************************************************************************/
 Device devices[MAX_NUMBER_DEVICES];
-//Event events[32000];
-//int front;
-//int back;
-//int deviceNum;
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -155,26 +151,36 @@ void BookKeeping(void){
   // 3) the average turnaround time.
   // Print the overall averages of the three metrics 1-3 above
   int n = 0;
-  Timestamp avgResponse = 0;
-  Timestamp avgTurnaround = 0;
-  float percentMissed;
+  Timestamp avgResponse;
+  Timestamp avgTurnaround;
+  int deviceMissed = 0;
+  int totalMissed = 0;
+  float percentMissed = 0.0;
   float avgPercentMissed = 0.0;
+
   while(n < Number_Devices)
   {
+	devices[n].responseTotal = devices[n].responseTotal / (double) devices[n].responses;
+	devices[n].turnaroundTotal = devices[n].turnaroundTotal / (double) devices[n].turnarounds++;
   	avgResponse += devices[n].responseTotal;
 	avgTurnaround += devices[n].turnaroundTotal;
-	devices[n].responseTotal = devices[n].responseTotal / devices[n].responses;
-	devices[n].turnaroundTotal = devices[n].turnaroundTotal / devices[n].turnarounds++;
-	percentMissed = (100.0 - devices[n].eventsProcessed) / 100.0;
+
+    deviceMissed = (100 - devices[n].eventsProcessed);
+	percentMissed = deviceMissed / 100.0;
 	avgPercentMissed += percentMissed;
+    totalMissed += deviceMissed;
 		
-	printf("\n Device %d: Avg Response: %4.3f Avg Turnaround: %4.3f Percent Missed: %4.3f\n",
-        n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed);
+	printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
+        n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed, deviceMissed);
 	n++;
   }
+    
+  avgResponse = avgResponse / (double) Number_Devices;
+  avgTurnaround = avgTurnaround / (double) Number_Devices;
+  avgPercentMissed = avgPercentMissed / (double) Number_Devices;
 
-  printf("\n Averages over all devices: Avg Response: %4.3f Avg Turnaround: %4.3f Avg Percent Missed: %4.3f\n",
-  avgResponse/n, avgTurnaround/n, avgPercentMissed/n);
+  printf("\nAverages over all devices:\nAvg Response: %f\nAvg Turnaround: %f\nAvg Percent Missed: %f\nTotal missed: %d\n",
+  avgResponse, avgTurnaround, avgPercentMissed, totalMissed);
 }
 
 
