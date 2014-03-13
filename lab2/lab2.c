@@ -40,10 +40,10 @@ typedef struct DeviceTag {
 /*****************************************************************************\
 *                                  Global data                                *
 \*****************************************************************************/
-Device devices[32];
-Event events[32000];
-int front;
-int back;
+Device devices[MAX_NUMBER_DEVICES];
+//Event events[32000];
+//int front;
+//int back;
 //int deviceNum;
 
 /*****************************************************************************\
@@ -90,17 +90,19 @@ void Control(void){
 		{
 			tempFlags = Flags;
             Flags = 0;
-			
+            deviceNum = 0;		
+
 			while(tempFlags)
 			{
-				deviceNum = 0;
+
 				if (tempFlags & 1)
 				{
                     e = BufferLastEvent[deviceNum];
-                    Server(&e);
-                    devices[e.DeviceID].turnaroundTotal += Now() - e.When;
-                    devices[e.DeviceID].turnarounds++;
-                    devices[e.DeviceID].eventsProcessed++;
+                    //printf("Servicing event %d on device %d\n", e.EventID, deviceNum);
+                    Server(&e);                  
+                    devices[deviceNum].turnaroundTotal += Now() - e.When;
+                    devices[deviceNum].turnarounds++;
+                    devices[deviceNum].eventsProcessed++;
 				}
 				tempFlags = tempFlags >> 1;
 				deviceNum++;
@@ -157,14 +159,13 @@ void BookKeeping(void){
   Timestamp avgTurnaround = 0;
   float percentMissed;
   float avgPercentMissed = 0.0;
-  printf("Entering bookkeeping loop");
   while(n < Number_Devices)
   {
   	avgResponse += devices[n].responseTotal;
 	avgTurnaround += devices[n].turnaroundTotal;
 	devices[n].responseTotal = devices[n].responseTotal / devices[n].responses;
 	devices[n].turnaroundTotal = devices[n].turnaroundTotal / devices[n].turnarounds++;
-	percentMissed = (100 - devices[n].eventsProcessed) / 100;
+	percentMissed = (100.0 - devices[n].eventsProcessed) / 100.0;
 	avgPercentMissed += percentMissed;
 		
 	printf("\n Device %d: Avg Response: %4.3f Avg Turnaround: %4.3f Percent Missed: %4.3f\n",
