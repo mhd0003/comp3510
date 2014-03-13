@@ -146,16 +146,16 @@ void BookKeeping(void){
   float avgPercentMissed = 0.0;
   while(n </*number of devices*/)
   {
-  		avgResponse += devices[n].responseTotal;
-		avgTurnaround += devices[n].turnaroundTotal;
-		devices[n].responseTotal = devices[n].responseTotal / devices[n].responses;
-		devices[n].turnaroundTotal = devices[n].turnaroundTotal / devices[n].turnarounds++;
-		percentMissed = (100 - devices[n].eventsProcessed) / 100;
-		avgPercentMissed += percentMissed;
+  	avgResponse += devices[n].responseTotal;
+	avgTurnaround += devices[n].turnaroundTotal;
+	devices[n].responseTotal = devices[n].responseTotal / devices[n].responses;
+	devices[n].turnaroundTotal = devices[n].turnaroundTotal / devices[n].turnarounds++;
+	percentMissed = (100 - devices[n].eventsProcessed) / 100;
+	avgPercentMissed += percentMissed;
 		
-		printf("\n Device %d: Avg Response: %4.3f Avg Turnaround: %4.3f Percent Missed: %4.3f\n",
-      n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed);
-		n++;
+	printf("\n Device %d: Avg Response: %4.3f Avg Turnaround: %4.3f Percent Missed: %4.3f\n",
+        n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed);
+	n++;
   }
   printf("\n Averages over all devices: Avg Response: %4.3f Avg Turnaround: %4.3f Avg Percent Missed: %4.3f\n",
   avgResponse/n, avgTurnaround/n, avgPercentMissed/n);
