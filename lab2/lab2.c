@@ -129,19 +129,25 @@ void Control(void){
 \***********************************************************************/
 void InterruptRoutineHandlerDevice(void){
     printf("An event occured at %f  Flags = %d \n", Now(), Flags);
-
+    Event* event;
     Status tempFlags = Flags;
     int deviceNum = 0;
 
+    // This can be really bad if new event interrupts us while
+    // we are in the loop -- end up adding it twice?
+    Flags = 0;
+
+    // Grab all events in sequential order
     while(tempFlags)
     {
         if(tempFlags & 1)
         {
-            Event e = BufferLastEvent[deviceNum];
+            // Copy event from volatile memory and make it get in line
+            event = enqueue(&BufferLastEvent[deviceNum]);
 
-            devices[deviceNum].responseTotal += Now() - e.When;
+            devices[deviceNum].responseTotal += Now() - event->When;
             devices[deviceNum].responses++;
-            DisplayEvent('c', &e);
+            DisplayEvent('c', event);
         }
 
         tempFlags = tempFlags >> 1;
