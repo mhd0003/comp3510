@@ -20,6 +20,7 @@
 /*****************************************************************************\
 *                             Global definitions                              *
 \*****************************************************************************/
+#define MAX_EVENT_ID 100
 
 
 
@@ -28,7 +29,7 @@
 /*****************************************************************************\
 *                            Global data structures                           *
 \*****************************************************************************/
-//to keep track of events, response, and turnaround for each device. 
+//to keep track of events, response, and turnaround for each device.
 typedef struct DeviceTag {
     Timestamp responseTotal;
     Timestamp turnaroundTotal;
@@ -37,10 +38,19 @@ typedef struct DeviceTag {
     int turnarounds;
 } Device;
 
+// Keeps track of which events to process next
+// Allocates all memory upfront -- never deletes "served" events
+// Queue is empty when (head > tail)
+typedef struct queue {
+  int head,tail;
+  Event allEvents[MAX_EVENT_ID*MAX_NUMBER_DEVICES];
+} Queue;
+
 /*****************************************************************************\
 *                                  Global data                                *
 \*****************************************************************************/
 Device devices[MAX_NUMBER_DEVICES];
+Queue eventQueue;
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -49,7 +59,8 @@ Device devices[MAX_NUMBER_DEVICES];
 void Control(void);
 void InterruptRoutineHandlerDevice(void);
 void BookKeeping();
-
+Event* enqueue(Event* event);
+Event* dequeue(void);
 
 /*****************************************************************************\
 * function: main()                                                            *
@@ -68,7 +79,7 @@ int main (int argc, char **argv) {
 
    if (Initialization(argc,argv)){
      Control();
-   } 
+   }
 } /* end of main function */
 
 /***********************************************************************\
@@ -86,7 +97,7 @@ void Control(void){
 		{
 			tempFlags = Flags;
             Flags = 0;
-            deviceNum = 0;		
+            deviceNum = 0;
 
 			while(tempFlags)
 			{
@@ -95,7 +106,7 @@ void Control(void){
 				{
                     e = BufferLastEvent[deviceNum];
                     //printf("Servicing event %d on device %d\n", e.EventID, deviceNum);
-                    Server(&e);                  
+                    Server(&e);
                     devices[deviceNum].turnaroundTotal += Now() - e.When;
                     devices[deviceNum].turnarounds++;
                     devices[deviceNum].eventsProcessed++;
@@ -117,14 +128,14 @@ void Control(void){
 *           The id of the device is encoded in the variable flag        *
 \***********************************************************************/
 void InterruptRoutineHandlerDevice(void){
-    printf("An event occured at %f  Flags = %d \n", Now(), Flags);   
+    printf("An event occured at %f  Flags = %d \n", Now(), Flags);
 
     Status tempFlags = Flags;
     int deviceNum = 0;
-   
-    while(tempFlags)    
+
+    while(tempFlags)
     {
-        if(tempFlags & 1) 
+        if(tempFlags & 1)
         {
             Event e = BufferLastEvent[deviceNum];
 
@@ -148,7 +159,7 @@ void InterruptRoutineHandlerDevice(void){
 \***********************************************************************/
 void BookKeeping(void){
   // For EACH device, print out the following metrics :
-  // 1) the percentage of missed events, 2) the average response time, and 
+  // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
   // Print the overall averages of the three metrics 1-3 above
   int n = 0;
@@ -170,18 +181,56 @@ void BookKeeping(void){
 	percentMissed = deviceMissed / 100.0;
 	avgPercentMissed += percentMissed;
     totalMissed += deviceMissed;
-		
+
 	printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
         n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed, deviceMissed);
 	n++;
   }
-    
+
   avgResponse = avgResponse / (double) Number_Devices;
   avgTurnaround = avgTurnaround / (double) Number_Devices;
   avgPercentMissed = avgPercentMissed / (double) Number_Devices;
 
   printf("\nAverages over all devices:\nAvg Response: %f\nAvg Turnaround: %f\nAvg Percent Missed: %f\nTotal missed: %d\n",
   avgResponse, avgTurnaround, avgPercentMissed, totalMissed);
+
+  fflush(stdout);
+}
+
+/***********************************************************************\
+* Input : event in volatile memory to copy from                         *
+* Output: pointer to event in local memory                              *
+* Function: Copies an event from BufferLastEvent and saved so we can    *
+*           call Server() on it later.                                  *
+\***********************************************************************/
+Event* enqueue(Event* event) {
+  // increment tail index and copy the event from volatile memory
+  eventQueue.tail += 1;
+  memcpy(&eventQueue.allEvents[eventQueue.tail], event, sizeof(*event));
+
+  return &eventQueue.allEvents[eventQueue.tail];
+}
+
+/***********************************************************************\
+* Input : none                                                          *
+* Output: pointer to next event in queue                                *
+* Function: Returns pointer to next event we should process (FIFO)      *
+*           Returns NULL if all enqueued events have already been       *
+*           dequeued.                                                   *
+\***********************************************************************/
+Event* dequeue(void) {
+  Event* event;
+
+  // queue is "empty" -- use initial values head = 0, tail = -1
+  if (eventQueue.head > eventQueue.tail) {
+    return NULL;
+  }
+
+  // save pointer to next event and increment head index
+  event = &eventQueue.allEvents[eventQueue.head];
+  eventQueue.head += 1;
+
+  return event;
 }
 
 
