@@ -88,35 +88,24 @@ int main (int argc, char **argv) {
  * Function: Monitor Devices and process events (written by students)    *
  \***********************************************************************/
 void Control(void){
-    Event e;
-    Status tempFlags;
-    int deviceNum = 0;
-	while (1)
-	{
-		if (Flags)
+  int deviceNum;
+  Event* event;
+  // init the global queue
+  eventQueue.head = 0;
+  eventQueue.tail = -1;
+
+  // Get next event in queue, if any, then process it
+  while (1)
+  {
+    event = dequeue();
+		if (event != NULL)
 		{
-			tempFlags = Flags;
-            Flags = 0;
-            deviceNum = 0;
-
-			while(tempFlags)
-			{
-
-				if (tempFlags & 1)
-				{
-                    e = BufferLastEvent[deviceNum];
-                    //printf("Servicing event %d on device %d\n", e.EventID, deviceNum);
-                    Server(&e);
-                    devices[deviceNum].turnaroundTotal += Now() - e.When;
-                    devices[deviceNum].turnarounds++;
-                    devices[deviceNum].eventsProcessed++;
-				}
-
-				tempFlags = tempFlags >> 1;
-				deviceNum++;
-			}
-
-            //Event e = BufferLastEvent[deviceNum];
+      deviceNum = event->DeviceID;
+      // printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
+      Server(event);
+      devices[deviceNum].turnaroundTotal += Now() - event->When;
+      devices[deviceNum].turnarounds++;
+      devices[deviceNum].eventsProcessed++;
 		}
 	}
 }
