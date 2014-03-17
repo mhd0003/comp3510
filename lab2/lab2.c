@@ -172,7 +172,7 @@ void BookKeeping(void){
   	avgResponse += devices[n].responseTotal;
 	avgTurnaround += devices[n].turnaroundTotal;
 
-    deviceMissed = (100 - devices[n].eventsProcessed);
+    deviceMissed = (100 - devices[n].responses);
 	percentMissed = deviceMissed / 100.0;
 	avgPercentMissed += percentMissed;
     totalMissed += deviceMissed;
