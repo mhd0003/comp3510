@@ -30,10 +30,10 @@
 *                            Global data structures                           *
 \*****************************************************************************/
 
-typedef struct eventNode {
+typedef struct queueNode {
     Event *event;
-    struct eventNode *next;
-} EventNode;
+    struct queueNode *next;
+} QueueNode;
 
 // Keeps track of which events to process next
 // Allocates all memory upfront -- never deletes "served" events
@@ -42,7 +42,7 @@ typedef struct queue {
   //int head,tail,size;
   int size;
   //Event Events[QUEUE_SIZE];
-  EventNode *events;
+  QueueNode *events;
 } Queue;
 
 
@@ -109,26 +109,28 @@ void Control(void){
 //  		devices[i].eventQueue.head = 0;
 //		devices[i].eventQueue.tail = 1;
 		devices[i].eventQueue.size = 0;
-        devices[i].eventQueue.events = (EventNode *) malloc( sizeof(EventNode));
+        devices[i].eventQueue.events = (QueueNode *) malloc( sizeof(QueueNode));
+        devices[i].eventQueue.events->next = 0;
+        devices[i].eventQueue.events->event = NULL;
   }
 
   // Get next event in queue, if any, then process it
+  int loop = 0;
   while (1)
   {
+        loop++;
+        //if((loop % 1000000) == 0)
+          //  printf("Main loop\n");
   		deviceNum = 0;
-    	//while(!EP && deviceNum < MAX_NUMBER_DEVICE)
         while(deviceNum < Number_Devices)
 		{
-			//if (!devices[deviceNum].eventQueue.isEmpty())
             event = dequeue(deviceNum);
             if(event != 0)
 			{
-				//EP = true;
 
-            //TODO:FIX
-		    //  event = &devices[deviceNum].eventQueue.dequeue();
-		      // printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
+		      printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
 		      Server(event);
+              sleep(1);
 		      devices[deviceNum].turnaroundTotal += Now() - event->When;
 		      devices[deviceNum].turnarounds++;
 		      devices[deviceNum].eventsProcessed++;
@@ -153,21 +155,20 @@ void InterruptRoutineHandlerDevice(void){
     Status tempFlags = Flags;
     int deviceNum = 0;
 
-    // This can be really bad if new event interrupts us while
-    // we are in the loop -- end up adding it twice?
     Flags = 0;
 
     // Grab all events in sequential order
+    //printf("Operating on flags\n");
     while(tempFlags)
     {
         if(tempFlags & 1)
         {
             // Copy event from volatile memory and make it get in line
+            //printf("Found an event\n");
             event = &BufferLastEvent[deviceNum];
-            //TODO: FIX
+
             if(!isFull(deviceNum)) {
               enqueue(event, deviceNum);
-              //  devices[deviceNum].eventQueue.enqueue(event);
             }
             devices[deviceNum].responseTotal += Now() - event->When;
             devices[deviceNum].responses++;
@@ -200,6 +201,7 @@ void BookKeeping(void){
   float percentMissed = 0.0;
   float avgPercentMissed = 0.0;
 
+  printf("Doing bookkeeping");
   while(n < Number_Devices)
   {
 	devices[n].responseTotal = devices[n].responseTotal / (double) devices[n].responses;
@@ -254,9 +256,10 @@ int isEmpty(int deviceNum) {
 *           call Server() on it later.                                  *
 \***********************************************************************/
 Event* enqueue(Event* event, int deviceNum) {
-  Event* eventOut;
-  EventNode *iterator;
+  Queue* eventOut;
+  QueueNode *iterator;
 
+  //printf("Trying to enqueue\n");
   if(devices[deviceNum].eventQueue.size < QUEUE_SIZE) {
       iterator = devices[deviceNum].eventQueue.events;
 
@@ -267,15 +270,19 @@ Event* enqueue(Event* event, int deviceNum) {
         }
         
       }
-
+      //printf("Found the head\n");
       //Allocate memory for the next pointer
-      iterator->next = malloc(sizeof(EventNode));
+      iterator->next = malloc(sizeof(QueueNode));
+      //printf("Copying to memory\n");
+      iterator->event = event;
       
       //Copy event to end of list
-      memcpy(iterator->event, event, sizeof(*event));
+
+//      memcpy(iterator->event, event, sizeof(*event));
+      //printf("Copied to memory\n");
   }
 
-  return event;
+  return iterator->event;
 }
 
 /***********************************************************************\
@@ -286,16 +293,25 @@ Event* enqueue(Event* event, int deviceNum) {
 *           dequeued.                                                   *
 \***********************************************************************/
 Event* dequeue(int deviceNum) {
-  Event* event = 0;
-  EventNode *iterator;
+  //printf("In dequeue\n");
+  Event* event = NULL;
+  QueueNode *iterator;
   iterator = devices[deviceNum].eventQueue.events;
-  
+  //printf("Got iterator\n");
   if(iterator != 0) {
-    memcpy(event, iterator->event, sizeof(iterator->event));
-    iterator->event = NULL;
-    iterator->next = iterator->next;
-    devices[deviceNum].eventQueue.size -= 1;
+    //printf("Copying event\n");
+    if(iterator->event != NULL) {
+        printf("Got an event\n");
+        event = iterator->event;
+        //iterator->event = event;
+ //       memcpy(event, iterator->event, sizeof(*event));
+        //printf("Event copied\n");
+        iterator->event = NULL;
+        iterator->next = iterator->next->next;
+        devices[deviceNum].eventQueue.size -= 1;
+    }
   }
+  //printf("Exited dequeue if\n");
 
   return event;
 }
