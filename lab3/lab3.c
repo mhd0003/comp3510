@@ -22,7 +22,8 @@
 \*****************************************************************************/
 #define MAX_EVENT_ID 100
 
-#define QUEUE_SIZE 2
+//#define QUEUE_SIZE 2
+#define QUEUE_SIZE 8
 
 
 
@@ -68,6 +69,7 @@ Device devices[MAX_NUMBER_DEVICES];
 void Control(void);
 void InterruptRoutineHandlerDevice(void);
 void BookKeeping();
+void totalDeviceStatistics(int deviceNum);
 Event* enqueue(Event* event, int deviceNum);
 Event* dequeue(int deviceNum);
 int isFull(int deviceNum);
@@ -106,34 +108,32 @@ void Control(void){
   // init the global devices
   for(i; i < Number_Devices; i++)
   {
-//  		devices[i].eventQueue.head = 0;
-//		devices[i].eventQueue.tail = 1;
 		devices[i].eventQueue.size = 0;
         devices[i].eventQueue.events = (QueueNode *) malloc( sizeof(QueueNode));
         devices[i].eventQueue.events->next = 0;
         devices[i].eventQueue.events->event = NULL;
   }
 
-  // Get next event in queue, if any, then process it
-  int loop = 0;
   while (1)
-  {
-        loop++;
-        //if((loop % 1000000) == 0)
-          //  printf("Main loop\n");
+  {     
+        
   		deviceNum = 0;
         while(deviceNum < Number_Devices)
 		{
+            // Get next event in queue, if any, then process it
             event = dequeue(deviceNum);
-            if(event != 0)
-			{
 
+            
+            if(event != NULL)
+			{
+                
 		      printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
 		      Server(event);
-              sleep(1);
 		      devices[deviceNum].turnaroundTotal += Now() - event->When;
 		      devices[deviceNum].turnarounds++;
 		      devices[deviceNum].eventsProcessed++;
+              //Reset priority to give the highest priority another chance to go
+              deviceNum = 0;
 			}
 			else 
 			{
@@ -158,13 +158,11 @@ void InterruptRoutineHandlerDevice(void){
     Flags = 0;
 
     // Grab all events in sequential order
-    //printf("Operating on flags\n");
     while(tempFlags)
     {
         if(tempFlags & 1)
         {
             // Copy event from volatile memory and make it get in line
-            //printf("Found an event\n");
             event = &BufferLastEvent[deviceNum];
 
             if(!isFull(deviceNum)) {
@@ -189,46 +187,38 @@ void InterruptRoutineHandlerDevice(void){
 *           not yet processed (Server() function not yet called)        *
 \***********************************************************************/
 void BookKeeping(void){
-  // For EACH device, print out the following metrics :
+  // For the highest and lowest priority devices print the following statistics:
   // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
-  // Print the overall averages of the three metrics 1-3 above
-  int n = 0;
-  Timestamp avgResponse;
-  Timestamp avgTurnaround;
-  int deviceMissed = 0;
-  int totalMissed = 0;
-  float percentMissed = 0.0;
-  float avgPercentMissed = 0.0;
 
   printf("Doing bookkeeping");
-  while(n < Number_Devices)
-  {
-	devices[n].responseTotal = devices[n].responseTotal / (double) devices[n].responses;
-	devices[n].turnaroundTotal = devices[n].turnaroundTotal / (double) devices[n].turnarounds++;
-  	avgResponse += devices[n].responseTotal;
-	avgTurnaround += devices[n].turnaroundTotal;
-
-    deviceMissed = (100 - devices[n].responses);
-	percentMissed = deviceMissed / 100.0;
-	avgPercentMissed += percentMissed;
-    totalMissed += deviceMissed;
-
-	printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
-        n, devices[n].responseTotal, devices[n].turnaroundTotal, percentMissed, deviceMissed);
-	n++;
-  }
-
-  avgResponse = avgResponse / (double) Number_Devices;
-  avgTurnaround = avgTurnaround / (double) Number_Devices;
-  avgPercentMissed = avgPercentMissed / (double) Number_Devices;
-
-  printf("\nAverages over all devices:\nAvg Response: %f\nAvg Turnaround: %f\nAvg Percent Missed: %f\nTotal missed: %d\n",
-  avgResponse, avgTurnaround, avgPercentMissed, totalMissed);
+  totalDeviceStatistics(0);
+  totalDeviceStatistics(Number_Devices - 1);
 
   fflush(stdout);
 }
-//These QUEUE functions need to be redone inorder to make my current solution work.
+
+void totalDeviceStatistics(int deviceNum) {
+  Timestamp avgResponse;
+  Timestamp avgTurnaround;
+  int deviceMissed = 0;
+  float percentMissed = 0.0;
+  //float avgPercentMissed = 0.0;
+  Device device = devices[deviceNum];
+
+  device.responseTotal = device.responseTotal / (double) device.responses;
+  device.turnaroundTotal = device.turnaroundTotal / (double) device.turnarounds;
+  avgResponse += device.responseTotal;
+  avgTurnaround += device.turnaroundTotal;
+
+  deviceMissed = (100 - device.eventsProcessed);
+  percentMissed = deviceMissed / 100.0;
+  //avgPercentMissed += percentMissed;
+
+  printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
+      deviceNum, device.responseTotal, device.turnaroundTotal, percentMissed, deviceMissed);
+
+}
 
 /***********************************************************************\
 * Input : none                         											*
@@ -256,32 +246,30 @@ int isEmpty(int deviceNum) {
 *           call Server() on it later.                                  *
 \***********************************************************************/
 Event* enqueue(Event* event, int deviceNum) {
-  Queue* eventOut;
+  Event* eventOut;
+  //eventOut = event;
   QueueNode *iterator;
 
-  //printf("Trying to enqueue\n");
-  if(devices[deviceNum].eventQueue.size < QUEUE_SIZE) {
-      iterator = devices[deviceNum].eventQueue.events;
+  iterator = devices[deviceNum].eventQueue.events;
 
-      //Find the end of the list
-      if(iterator != 0) {
-        while(iterator->next != 0) {
-            iterator = iterator->next;
-        }
-        
-      }
-      //printf("Found the head\n");
-      //Allocate memory for the next pointer
-      iterator->next = malloc(sizeof(QueueNode));
-      //printf("Copying to memory\n");
-      iterator->event = event;
-      
-      //Copy event to end of list
-
-//      memcpy(iterator->event, event, sizeof(*event));
-      //printf("Copied to memory\n");
+  //Find the end of the list
+  if(iterator != 0) {
+    while(iterator->next != 0) {
+        iterator = iterator->next;
+    }
+    
   }
+  //Allocate memory for the next pointer
 
+  //devices[i].eventQueue.events = (QueueNode *) malloc( sizeof(QueueNode));
+  iterator->next = (QueueNode *) malloc(sizeof(QueueNode));
+  
+  //Copy event to end of list
+  iterator->event = event;
+  devices[deviceNum].eventQueue.events->next = iterator->next;
+  devices[deviceNum].eventQueue.events->event = iterator->event;
+  devices[deviceNum].eventQueue.size += 1;
+      
   return iterator->event;
 }
 
@@ -293,25 +281,18 @@ Event* enqueue(Event* event, int deviceNum) {
 *           dequeued.                                                   *
 \***********************************************************************/
 Event* dequeue(int deviceNum) {
-  //printf("In dequeue\n");
   Event* event = NULL;
   QueueNode *iterator;
   iterator = devices[deviceNum].eventQueue.events;
-  //printf("Got iterator\n");
   if(iterator != 0) {
-    //printf("Copying event\n");
     if(iterator->event != NULL) {
-        printf("Got an event\n");
         event = iterator->event;
-        //iterator->event = event;
- //       memcpy(event, iterator->event, sizeof(*event));
-        //printf("Event copied\n");
         iterator->event = NULL;
         iterator->next = iterator->next->next;
         devices[deviceNum].eventQueue.size -= 1;
+        devices[deviceNum].eventQueue.events->next = iterator->next;
     }
   }
-  //printf("Exited dequeue if\n");
 
   return event;
 }
