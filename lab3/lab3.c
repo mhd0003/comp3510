@@ -30,12 +30,19 @@
 *                            Global data structures                           *
 \*****************************************************************************/
 
+typedef struct eventNode {
+    Event *event;
+    struct eventNode *next;
+} EventNode;
+
 // Keeps track of which events to process next
 // Allocates all memory upfront -- never deletes "served" events
 // Queue is empty when (head > tail)
 typedef struct queue {
-  int head,tail,size;
-  Event Events[QUEUE_SIZE];
+  //int head,tail,size;
+  int size;
+  //Event Events[QUEUE_SIZE];
+  EventNode *events;
 } Queue;
 
 
@@ -46,7 +53,7 @@ typedef struct DeviceTag {
     int eventsProcessed;
     int responses;
     int turnarounds;
-	 Queue eventQueue;
+	Queue eventQueue;
 } Device;
 
 /*****************************************************************************\
@@ -61,8 +68,10 @@ Device devices[MAX_NUMBER_DEVICES];
 void Control(void);
 void InterruptRoutineHandlerDevice(void);
 void BookKeeping();
-Event* enqueue(Event* event);
-Event* dequeue(void);
+Event* enqueue(Event* event, int deviceNum);
+Event* dequeue(int deviceNum);
+int isFull(int deviceNum);
+int isEmpty(int deviceNum);
 
 /*****************************************************************************\
 * function: main()                                                            *
@@ -92,26 +101,32 @@ int main (int argc, char **argv) {
 void Control(void){
   int deviceNum;
   int i = 0;
-  boolean EP = false;
+  //boolean EP = false;
   Event* event;
   // init the global devices
-  for(i; i<MAX_NUMBER_DEVICES; i++)
+  for(i; i < Number_Devices; i++)
   {
-  		devices[i].eventQueue.head = 0;
-		devices[i].eventQueue.tail = 1;
+//  		devices[i].eventQueue.head = 0;
+//		devices[i].eventQueue.tail = 1;
 		devices[i].eventQueue.size = 0;
+        devices[i].eventQueue.events = (EventNode *) malloc( sizeof(EventNode));
   }
 
   // Get next event in queue, if any, then process it
   while (1)
   {
   		deviceNum = 0;
-    	while(!EP && deviceNum < MAX_NUMBER_DEVICE)
+    	//while(!EP && deviceNum < MAX_NUMBER_DEVICE)
+        while(deviceNum < Number_Devices)
 		{
-			if (!devices[deviceNum].eventQueue.isEmpty())
+			//if (!devices[deviceNum].eventQueue.isEmpty())
+            event = dequeue(deviceNum);
+            if(event != 0)
 			{
-				EP = true;
-		      event = &devices[deviceNum].eventQueue.dequeue();
+				//EP = true;
+
+            //TODO:FIX
+		    //  event = &devices[deviceNum].eventQueue.dequeue();
 		      // printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
 		      Server(event);
 		      devices[deviceNum].turnaroundTotal += Now() - event->When;
@@ -149,10 +164,11 @@ void InterruptRoutineHandlerDevice(void){
         {
             // Copy event from volatile memory and make it get in line
             event = &BufferLastEvent[deviceNum];
-				if(!devices[deviceNum].eventQueue.isFull())
-				{
-					devices[deviceNum].eventQueue.enqueue(event);
-				}
+            //TODO: FIX
+            if(!isFull(deviceNum)) {
+              enqueue(event, deviceNum);
+              //  devices[deviceNum].eventQueue.enqueue(event);
+            }
             devices[deviceNum].responseTotal += Now() - event->When;
             devices[deviceNum].responses++;
             DisplayEvent('c', event);
@@ -217,13 +233,8 @@ void BookKeeping(void){
 * Output: Boolean value							                              *
 * Function: Returns a boolean value depending on if the queue is full   *
 \***********************************************************************/
-boolean isFull() {
-	boolean b = false;
-	
-	if (size == QUEUE_SIZE)
-		b = true;
-		
-	return b;
+int isFull(int deviceNum) {
+	return devices[deviceNum].eventQueue.size == QUEUE_SIZE;
 }
 
 /***********************************************************************\
@@ -231,13 +242,8 @@ boolean isFull() {
 * Output: Boolean value							                              *
 * Function: Returns a boolean value depending on if the queue is empty  *
 \***********************************************************************/
-boolean isEmpty() {
-	boolean b = false;
-	
-	if (head == tail)
-		b = true;
-		
-	return b;
+int isEmpty(int deviceNum) {
+	return devices[deviceNum].eventQueue.size == 0;
 }
 
 
@@ -247,13 +253,29 @@ boolean isEmpty() {
 * Function: Copies an event from BufferLastEvent and saved so we can    *
 *           call Server() on it later.                                  *
 \***********************************************************************/
-Event* enqueue(Event* event) {
-  // increment tail index, size, and copy the event from volatile memory
-  eventQueue.tail += 1;
-  eventQueue.size += 1;
-  memcpy(&eventQueue.allEvents[eventQueue.tail], event, sizeof(*event));
+Event* enqueue(Event* event, int deviceNum) {
+  Event* eventOut;
+  EventNode *iterator;
 
-  return &eventQueue.allEvents[eventQueue.tail];
+  if(devices[deviceNum].eventQueue.size < QUEUE_SIZE) {
+      iterator = devices[deviceNum].eventQueue.events;
+
+      //Find the end of the list
+      if(iterator != 0) {
+        while(iterator->next != 0) {
+            iterator = iterator->next;
+        }
+        
+      }
+
+      //Allocate memory for the next pointer
+      iterator->next = malloc(sizeof(EventNode));
+      
+      //Copy event to end of list
+      memcpy(iterator->event, event, sizeof(*event));
+  }
+
+  return event;
 }
 
 /***********************************************************************\
@@ -263,18 +285,17 @@ Event* enqueue(Event* event) {
 *           Returns NULL if all enqueued events have already been       *
 *           dequeued.                                                   *
 \***********************************************************************/
-Event* dequeue(void) {
-  Event* event;
-
-  // queue is "empty" -- use initial values head = 0, tail = -1
-  if (eventQueue.head > eventQueue.tail) {
-    return NULL;
+Event* dequeue(int deviceNum) {
+  Event* event = 0;
+  EventNode *iterator;
+  iterator = devices[deviceNum].eventQueue.events;
+  
+  if(iterator != 0) {
+    memcpy(event, iterator->event, sizeof(iterator->event));
+    iterator->event = NULL;
+    iterator->next = iterator->next;
+    devices[deviceNum].eventQueue.size -= 1;
   }
-
-  // save pointer to next event, increment head index, and decriment size
-  event = &eventQueue.allEvents[eventQueue.head];
-  eventQueue.head += 1;
-  eventQueue.size -= 1;
 
   return event;
 }
