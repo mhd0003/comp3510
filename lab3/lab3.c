@@ -43,7 +43,9 @@ typedef struct queue {
   //int head,tail,size;
   int size;
   //Event Events[QUEUE_SIZE];
-  QueueNode *events;
+  //QueueNode *events;
+  QueueNode *head;
+  QueueNode *tail;
 } Queue;
 
 
@@ -71,9 +73,10 @@ void InterruptRoutineHandlerDevice(void);
 void BookKeeping();
 void totalDeviceStatistics(int deviceNum);
 Event* enqueue(Event* event, int deviceNum);
-Event* dequeue(int deviceNum);
+//Event* dequeue(int deviceNum);
+void dequeue(int deviceNum);
+Event* getFirst(int deviceNum);
 int isFull(int deviceNum);
-int isEmpty(int deviceNum);
 
 /*****************************************************************************\
 * function: main()                                                            *
@@ -104,14 +107,19 @@ void Control(void){
   int deviceNum;
   int i = 0;
   //boolean EP = false;
-  Event* event;
+  Event* event = NULL;
   // init the global devices
   for(i; i < Number_Devices; i++)
   {
 		devices[i].eventQueue.size = 0;
-        devices[i].eventQueue.events = (QueueNode *) malloc( sizeof(QueueNode));
-        devices[i].eventQueue.events->next = 0;
-        devices[i].eventQueue.events->event = NULL;
+        devices[i].eventQueue.head = NULL;
+        devices[i].eventQueue.tail = NULL;
+
+        devices[i].turnaroundTotal = 0;
+        devices[i].turnarounds = 0;
+        devices[i].responses = 0;
+        devices[i].eventsProcessed = 0;
+        devices[i].responseTotal = 0;
   }
 
   while (1)
@@ -121,24 +129,22 @@ void Control(void){
         while(deviceNum < Number_Devices)
 		{
             // Get next event in queue, if any, then process it
-            event = dequeue(deviceNum);
+            event = getFirst(deviceNum);//dequeue(deviceNum);
 
-            
             if(event != NULL)
 			{
-                
-		      printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
+              dequeue(deviceNum);
+		      //printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
 		      Server(event);
 		      devices[deviceNum].turnaroundTotal += Now() - event->When;
-		      devices[deviceNum].turnarounds++;
+              devices[deviceNum].turnarounds++;
 		      devices[deviceNum].eventsProcessed++;
               //Reset priority to give the highest priority another chance to go
               deviceNum = 0;
+              //event = NULL;
 			}
-			else 
-			{
-				deviceNum++;
-			}
+
+            deviceNum++;
 		}
 	}
 }
@@ -151,7 +157,7 @@ void Control(void){
 \***********************************************************************/
 void InterruptRoutineHandlerDevice(void){
     printf("An event occured at %f  Flags = %d \n", Now(), Flags);
-    Event* event;
+    Event* event = NULL;
     Status tempFlags = Flags;
     int deviceNum = 0;
 
@@ -166,7 +172,7 @@ void InterruptRoutineHandlerDevice(void){
             event = &BufferLastEvent[deviceNum];
 
             if(!isFull(deviceNum)) {
-              enqueue(event, deviceNum);
+              event = enqueue(event, deviceNum);
             }
             devices[deviceNum].responseTotal += Now() - event->When;
             devices[deviceNum].responses++;
@@ -199,45 +205,34 @@ void BookKeeping(void){
 }
 
 void totalDeviceStatistics(int deviceNum) {
-  Timestamp avgResponse;
-  Timestamp avgTurnaround;
-  int deviceMissed = 0;
-  float percentMissed = 0.0;
-  //float avgPercentMissed = 0.0;
-  Device device = devices[deviceNum];
+  int deviceMissed;
+  double percentMissed;
+  Timestamp averageTurnaround;
+  Timestamp averageResponse;
+  Device device;
 
-  device.responseTotal = device.responseTotal / (double) device.responses;
-  device.turnaroundTotal = device.turnaroundTotal / (double) device.turnarounds;
-  avgResponse += device.responseTotal;
-  avgTurnaround += device.turnaroundTotal;
+  device = devices[deviceNum];
+  averageResponse = devices[deviceNum].responseTotal / (double) devices[deviceNum].responses;
+  averageTurnaround = devices[deviceNum].turnaroundTotal / (double) devices[deviceNum].turnarounds;
 
   deviceMissed = (100 - device.eventsProcessed);
   percentMissed = deviceMissed / 100.0;
-  //avgPercentMissed += percentMissed;
 
   printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
-      deviceNum, device.responseTotal, device.turnaroundTotal, percentMissed, deviceMissed);
+          deviceNum, averageResponse, averageTurnaround, percentMissed, deviceMissed);
+  printf("Turnarounds: %d\nResponses: %d\nEvents Processed: %d\n", devices[deviceNum].turnarounds, devices[deviceNum].responses,
+          devices[deviceNum].eventsProcessed);
 
 }
 
 /***********************************************************************\
-* Input : none                         											*
-* Output: Boolean value							                              *
+* Input : none                         									*
+* Output: Boolean value							                        *
 * Function: Returns a boolean value depending on if the queue is full   *
 \***********************************************************************/
 int isFull(int deviceNum) {
 	return devices[deviceNum].eventQueue.size == QUEUE_SIZE;
 }
-
-/***********************************************************************\
-* Input : none                         											*
-* Output: Boolean value							                              *
-* Function: Returns a boolean value depending on if the queue is empty  *
-\***********************************************************************/
-int isEmpty(int deviceNum) {
-	return devices[deviceNum].eventQueue.size == 0;
-}
-
 
 /***********************************************************************\
 * Input : event in volatile memory to copy from                         *
@@ -246,31 +241,23 @@ int isEmpty(int deviceNum) {
 *           call Server() on it later.                                  *
 \***********************************************************************/
 Event* enqueue(Event* event, int deviceNum) {
-  Event* eventOut;
-  //eventOut = event;
-  QueueNode *iterator;
+  Event* eventOut = event;
+  QueueNode *temp = (QueueNode *) malloc(sizeof(QueueNode *));
+  temp->event = event;
+  temp->next = NULL;
 
-  iterator = devices[deviceNum].eventQueue.events;
 
-  //Find the end of the list
-  if(iterator != 0) {
-    while(iterator->next != 0) {
-        iterator = iterator->next;
-    }
-    
+  printf("Enqueueing event %d on device %d\n", event->EventID, deviceNum);
+  if(devices[deviceNum].eventQueue.head == NULL && devices[deviceNum].eventQueue.tail == NULL) {
+    devices[deviceNum].eventQueue.head = devices[deviceNum].eventQueue.tail = temp;
+  } else {
+    devices[deviceNum].eventQueue.tail->next = temp;
+    devices[deviceNum].eventQueue.tail = temp;
   }
-  //Allocate memory for the next pointer
 
-  //devices[i].eventQueue.events = (QueueNode *) malloc( sizeof(QueueNode));
-  iterator->next = (QueueNode *) malloc(sizeof(QueueNode));
-  
-  //Copy event to end of list
-  iterator->event = event;
-  devices[deviceNum].eventQueue.events->next = iterator->next;
-  devices[deviceNum].eventQueue.events->event = iterator->event;
-  devices[deviceNum].eventQueue.size += 1;
-      
-  return iterator->event;
+  devices[deviceNum].eventQueue.size++;
+
+  return eventOut;
 }
 
 /***********************************************************************\
@@ -280,19 +267,36 @@ Event* enqueue(Event* event, int deviceNum) {
 *           Returns NULL if all enqueued events have already been       *
 *           dequeued.                                                   *
 \***********************************************************************/
-Event* dequeue(int deviceNum) {
-  Event* event = NULL;
-  QueueNode *iterator;
-  iterator = devices[deviceNum].eventQueue.events;
-  if(iterator != 0) {
-    if(iterator->event != NULL) {
-        event = iterator->event;
-        iterator->event = NULL;
-        iterator->next = iterator->next->next;
-        devices[deviceNum].eventQueue.size -= 1;
-        devices[deviceNum].eventQueue.events->next = iterator->next;
-    }
+void dequeue(int deviceNum) {
+  //Event* event = NULL;
+  QueueNode *temp;
+  temp = devices[deviceNum].eventQueue.head;
+  if(devices[deviceNum].eventQueue.head == NULL || temp == 0) {
+   //return event;
+   return;
+  } 
+  
+  //event = temp->event;
+  printf("Dequeueing event %d on device %d\n", temp->event->EventID, deviceNum);
+
+  if (devices[deviceNum].eventQueue.head == devices[deviceNum].eventQueue.tail) {
+    devices[deviceNum].eventQueue.head = devices[deviceNum].eventQueue.tail = NULL;
+  } else {
+    devices[deviceNum].eventQueue.head = devices[deviceNum].eventQueue.head->next;
   }
 
-  return event;
+  devices[deviceNum].eventQueue.size--;
+
+  free(temp);
+
+  //return event;
+}
+
+Event* getFirst(int deviceNum) {
+    Event* event = NULL;
+    if (devices[deviceNum].eventQueue.head != NULL) {
+        event = devices[deviceNum].eventQueue.head->event;
+    }
+
+    return event;
 }
