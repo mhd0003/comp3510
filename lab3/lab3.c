@@ -22,8 +22,8 @@
 \*****************************************************************************/
 #define MAX_EVENT_ID 100
 
-#define QUEUE_SIZE 2
-//#define QUEUE_SIZE 8
+//#define QUEUE_SIZE 2
+#define QUEUE_SIZE 8
 
 
 
@@ -36,14 +36,8 @@ typedef struct queueNode {
     struct queueNode *next;
 } QueueNode;
 
-// Keeps track of which events to process next
-// Allocates all memory upfront -- never deletes "served" events
-// Queue is empty when (head > tail)
 typedef struct queue {
-  //int head,tail,size;
   int size;
-  //Event Events[QUEUE_SIZE];
-  //QueueNode *events;
   QueueNode *head;
   QueueNode *tail;
 } Queue;
@@ -198,7 +192,6 @@ void BookKeeping(void){
   // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
 
-  printf("Doing bookkeeping\n");
   printf("Remaining events: %d\n", devices[0].eventQueue.size);
   totalDeviceStatistics(0);
   totalDeviceStatistics(Number_Devices - 1);
@@ -222,8 +215,7 @@ void totalDeviceStatistics(int deviceNum) {
 
   printf("\nDevice %d:\nAvg Response: %f\nAvg Turnaround: %f\nPercent Missed: %f\nMissed: %d\n",
           deviceNum, averageResponse, averageTurnaround, percentMissed, deviceMissed);
-  //printf("Turnarounds: %d\nResponses: %d\nEvents Processed: %d\n", devices[deviceNum].turnarounds, devices[deviceNum].responses,
-    //      devices[deviceNum].eventsProcessed);
+  printf("Items remaining in queue: %d\n", devices[deviceNum].eventQueue.size);
 
 }
 
