@@ -22,8 +22,8 @@
 \*****************************************************************************/
 #define MAX_EVENT_ID 100
 
-//#define QUEUE_SIZE 2
-#define QUEUE_SIZE 8
+#define QUEUE_SIZE 2
+//#define QUEUE_SIZE 8
 
 
 
@@ -73,7 +73,6 @@ void InterruptRoutineHandlerDevice(void);
 void BookKeeping();
 void totalDeviceStatistics(int deviceNum);
 Event* enqueue(Event* event, int deviceNum);
-//Event* dequeue(int deviceNum);
 void dequeue(int deviceNum);
 Event* getFirst(int deviceNum);
 int isFull(int deviceNum);
@@ -131,7 +130,7 @@ void Control(void){
             // Get next event in queue, if any, then process it
             event = getFirst(deviceNum);
             
-            if(event != NULL && event != 0)
+            if(event != NULL)
 			{
    
 		      printf("Servicing event %d on device %d\n", event->EventID, deviceNum);
@@ -144,9 +143,9 @@ void Control(void){
 
               //Reset priority to give the highest priority another chance to go
               deviceNum = 0;
-			}
-
-            deviceNum++;
+			} else {
+                deviceNum++;
+            }
 		}
 	}
 }
@@ -199,7 +198,8 @@ void BookKeeping(void){
   // 1) the percentage of missed events, 2) the average response time, and
   // 3) the average turnaround time.
 
-  printf("Doing bookkeeping");
+  printf("Doing bookkeeping\n");
+  printf("Remaining events: %d\n", devices[0].eventQueue.size);
   totalDeviceStatistics(0);
   totalDeviceStatistics(Number_Devices - 1);
 
@@ -270,7 +270,7 @@ void dequeue(int deviceNum) {
   //Event* event = NULL;
   QueueNode *temp;
   temp = devices[deviceNum].eventQueue.head;
-  if(devices[deviceNum].eventQueue.head == NULL || temp == 0) {
+  if(devices[deviceNum].eventQueue.head == NULL) {
    return;
   } 
   
